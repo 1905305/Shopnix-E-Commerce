@@ -1,0 +1,29 @@
+@media (max-width: 768px) {
+  /* Category Grid */
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+    padding: 10px;
+  }
+
+  /* Product Card */
+  .product-card {
+    width: 100% !important;
+    margin: 10px 0;
+    box-sizing: border-box;
+  }
+
+  /* Navbar + Footer stacked layout */
+  nav,
+  footer {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  nav button,
+  footer button {
+    margin-top: 10px;
+  }
+}
