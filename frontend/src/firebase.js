@@ -5,11 +5,11 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   signInWithPopup,
-  signInWithRedirect
+  signInWithRedirect,
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// ✅ Firebase config from environment variables (.env or Vercel)
+// ✅ Firebase config from environment variables
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -22,31 +22,29 @@ const firebaseConfig = {
 // ✅ Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// ✅ Firebase services
+// ✅ Export Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ Google Auth Provider
+// ✅ Google Auth provider
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// ✅ Google Login Function with fallback
+// ✅ Login with Google (Popup fallback to Redirect)
 export const loginWithGoogle = async () => {
   try {
     await signInWithPopup(auth, googleProvider);
-  } catch (error) {
+  } catch (popupError) {
     console.warn('Popup blocked, falling back to redirect...');
     try {
       await signInWithRedirect(auth, googleProvider);
-    } catch (err) {
-      console.error('Redirect failed:', err);
+    } catch (redirectError) {
+      console.error('Google login failed:', redirectError);
     }
   }
 };
 
-// ✅ Generate invisible reCAPTCHA for phone number auth
+// ✅ Generate invisible reCAPTCHA for phone login
 export const generateRecaptcha = () => {
   if (!window.recaptchaVerifier) {
     window.recaptchaVerifier = new RecaptchaVerifier(
@@ -54,7 +52,7 @@ export const generateRecaptcha = () => {
       {
         size: 'invisible',
         callback: (response) => {
-          console.log('reCAPTCHA solved:', response);
+          console.log('reCAPTCHA verified:', response);
         },
       },
       auth
@@ -62,7 +60,7 @@ export const generateRecaptcha = () => {
   }
 };
 
-// ✅ Sign in with phone number
+// ✅ Sign in with Phone Number
 export const signInWithPhone = async (phoneNumber) => {
   generateRecaptcha();
   const appVerifier = window.recaptchaVerifier;
