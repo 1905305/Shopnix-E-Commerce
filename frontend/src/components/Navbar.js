@@ -14,7 +14,7 @@ import {
   FaBars,
 } from 'react-icons/fa';
 
-const Navbar = ({ transparent }) => {
+const Navbar = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -24,9 +24,7 @@ const Navbar = ({ transparent }) => {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
@@ -34,7 +32,7 @@ const Navbar = ({ transparent }) => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
-      console.error(err);
+      console.error('Login error:', err);
     }
   };
 
@@ -44,7 +42,7 @@ const Navbar = ({ transparent }) => {
       setProfileMenuOpen(false);
       navigate('/');
     } catch (err) {
-      console.error(err);
+      console.error('Logout error:', err);
     }
   };
 
@@ -75,6 +73,7 @@ const Navbar = ({ transparent }) => {
             : '0 2px 6px rgba(0, 0, 0, 0.2)',
         }}
       >
+        {/* Logo and Sidebar Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={iconButton}>
             <FaBars />
@@ -87,6 +86,7 @@ const Navbar = ({ transparent }) => {
           />
         </div>
 
+        {/* Search Box */}
         <form onSubmit={handleSearch} style={searchFormStyle}>
           <input
             type="text"
@@ -100,10 +100,11 @@ const Navbar = ({ transparent }) => {
           </button>
         </form>
 
+        {/* Navigation Buttons & User Section */}
         <div style={{ display: 'flex', alignItems: 'center', position: 'relative', gap: '10px' }}>
           <NavButton icon={<FaShoppingCart />} label="Cart" onClick={() => navigate('/cart')} />
           <NavButton icon={<FaShoppingCart style={{ transform: 'scaleX(-1)' }} />} label="Orders" onClick={() => navigate('/orders')} />
-          <NavButton icon={<FaUserShield />} onClick={() => navigate('/admin-login')} />
+          <NavButton icon={<FaUserShield />} label="Admin" onClick={() => navigate('/admin-login')} />
 
           {user ? (
             <div style={{ position: 'relative' }}>
@@ -130,6 +131,7 @@ const Navbar = ({ transparent }) => {
             <NavButton icon={<FaUserShield />} label="Login" onClick={login} />
           )}
 
+          {/* Extra Menu */}
           <div style={{ position: 'relative' }}>
             <button style={iconButton} onClick={() => setMenuOpen(!menuOpen)}>
               <FaEllipsisV />
@@ -146,6 +148,7 @@ const Navbar = ({ transparent }) => {
         </div>
       </nav>
 
+      {/* Sidebar */}
       {sidebarOpen && (
         <div style={sidebarStyle}>
           <SidebarGroup title="TRENDING" items={['Bestsellers', 'New Releases', 'Movers and Shakers']} />
@@ -161,7 +164,8 @@ const Navbar = ({ transparent }) => {
   );
 };
 
-// Helper components
+// ---------------------- Helper Components ----------------------
+
 const NavButton = ({ icon, label, onClick }) => (
   <button style={iconButton} onClick={onClick}>
     {icon} {label && <span>{label}</span>}
@@ -216,7 +220,8 @@ const SidebarGroup = ({ title, items }) => {
   );
 };
 
-// STYLES
+// ---------------------- Styles ----------------------
+
 const navbarStyle = {
   width: '100%',
   padding: '14px 40px',
