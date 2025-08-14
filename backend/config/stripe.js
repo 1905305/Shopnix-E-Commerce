@@ -1,8 +1,12 @@
 // config/stripe.js
-const Stripe = require('stripe');
+import Stripe from 'stripe';
+import dotenv from 'dotenv';
+dotenv.config();
 
-// Ensure your .env has: STRIPE_SECRET_KEY=sk_test_...
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY is missing in .env');
+}
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-module.exports = stripe;
+export default stripe;

@@ -1,13 +1,20 @@
+// backend/config/firebaseAdmin.js (yours)
 import admin from 'firebase-admin';
-import fs from 'fs';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const serviceAccount = JSON.parse(
-  fs.readFileSync(new URL('./serviceAccountKey.json', import.meta.url))
-);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
+const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
 
-const db = admin.firestore();
-export { db, admin };
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: process.env.FIREBASE_DATABASE_URL
+  });
+}
+
+export default admin;
