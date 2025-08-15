@@ -33,7 +33,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         .doc(session.id)
         .set({
           userId: session.metadata.userId || 'guest', // UID from metadata
-          email: session.metadata.email || session.customer_email || 'guest@example.com',
+          // email: session.metadata.email || session.customer_email || 'guest@example.com', // ❌ Commented out
           amount_total: session.amount_total,
           currency: session.currency,
           payment_status: session.payment_status,
@@ -41,7 +41,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           items: JSON.parse(session.metadata.items || '[]'), // Items from metadata
         });
 
-      console.log(`✅ Order stored for ${session.metadata.email || session.customer_email}`);
+      // console.log(`✅ Order stored for ${session.metadata.email || session.customer_email}`); // ❌ Commented out
+      console.log(`✅ Order stored successfully`);
     } catch (dbErr) {
       console.error('Error saving order:', dbErr);
     }
@@ -53,16 +54,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // --- Checkout session ---
 router.post('/create-checkout-session', async (req, res) => {
   try {
-    const { email, userId, items } = req.body;
+    const { /* email, */ userId, items } = req.body; // ❌ email removed from destructuring
 
-    if (!email || !items || !items.length) {
-      return res.status(400).json({ error: 'Email and items are required' });
+    if (/* !email || */ !items || !items.length) { // ❌ email check removed
+      return res.status(400).json({ error: 'Items are required' });
     }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      customer_email: email, // ✅ This ensures Stripe sends receipt email automatically
+      // customer_email: email, // ❌ Commented out
       line_items: items.map(item => ({
         price_data: {
           currency: 'inr',
@@ -75,9 +76,9 @@ router.post('/create-checkout-session', async (req, res) => {
       cancel_url: `${process.env.REACT_APP_BASE_URL}/cancel`,
       
       metadata: {
-        userId: userId || 'guest', // ✅ This is where UID will come from frontend
-        email: email || 'guest@example.com',
-        items: JSON.stringify(items) // ✅ Store items for webhook
+        userId: userId || 'guest',
+        // email: email || 'guest@example.com', // ❌ Commented out
+        items: JSON.stringify(items)
       }
     });
 
