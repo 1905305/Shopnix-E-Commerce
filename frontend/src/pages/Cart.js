@@ -129,19 +129,24 @@ const Cart = () => {
 
     try {
       const stripe = await loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
-      const response = await fetch('https://shopnix-e-commerce.onrender.com/api/stripe/create-checkout-session', {
 
+      // ✅ Added: build payload, log it, and send it
+      const payload = {
+        items: cartItems.map(({ title, name, price, quantity }) => ({
+          name: title || name || 'Unnamed Product',
+          price: Math.round(price * 100), // convert ₹ to paise
+          quantity: quantity || 1,
+        })),
+        userId: user?.uid || 'guest',
+        email: user?.email || 'guest@example.com'
+      };
+
+      console.log('Checkout payload:', payload);
+
+      const response = await fetch('https://shopnix-e-commerce.onrender.com/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: cartItems.map(({ title, name, price, quantity }) => ({
-            name: title || name,
-            price,
-            quantity,
-          })),
-          userId: user?.uid || 'guest',
-          email: user?.email || 'guest@example.com'
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) throw new Error('Checkout session creation failed');
