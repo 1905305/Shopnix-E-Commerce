@@ -1,19 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { db, auth } from '../firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import {
-  doc, getDoc, updateDoc, addDoc, collection, serverTimestamp
-} from 'firebase/firestore';
+  GoogleAuthProvider,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
+} from 'firebase/auth';
 import HomeIcon from '@mui/icons-material/Home';
 import WorkIcon from '@mui/icons-material/Work';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { loadStripe } from '@stripe/stripe-js'; // ✅ Stripe import
+import DeleteForeverRoundedIcon from '@mui/icons-material/DeleteForeverRounded';
+import AddCircleRoundedIcon from '@mui/icons-material/AddCircleRounded';
+import RemoveCircleRoundedIcon from '@mui/icons-material/RemoveCircleRounded';
+import { loadStripe } from '@stripe/stripe-js';
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const [totals, setTotals] = useState({
     itemTotal: 0,
     discount: 0,
-    platformFee: 30,
+    platformFee: 0,
     grandTotal: 0,
   });
   const [message, setMessage] = useState(null);
@@ -24,26 +30,23 @@ const Cart = () => {
   });
   const [savedAddress, setSavedAddress] = useState(null);
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [useNix, setUseNix] = useState(false);
-  const discountValue = useNix ? 100 : 0;
-
-  const brown = '#8B4513';
-  const lightBrown = '#f5f2ec';
+  const [customType, setCustomType] = useState('');
+  const discountValue = 0;
 
   const calculateTotals = useCallback((items) => {
     const itemTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const baseDiscount = Math.floor(itemTotal * 0.1);
+    const baseDiscount = 0;
     const appliedDiscount = baseDiscount + discountValue;
-    const platformFee = items.length > 0 ? 30 : 0;
+    const platformFee = 0;
     const grandTotal = itemTotal - appliedDiscount + platformFee;
     setTotals({ itemTotal, discount: appliedDiscount, platformFee, grandTotal });
-    setBoastMsg(`You're saving ₹${appliedDiscount}`);
+    setBoastMsg(null);
   }, [discountValue]);
 
   const mergeCartItems = (items) => {
     const merged = {};
     for (const item of items) {
-      const key = item.title;
+      const key = item.title || item.name || JSON.stringify(item);
       if (merged[key]) {
         merged[key].quantity += item.quantity || 1;
       } else {
@@ -90,7 +93,7 @@ const Cart = () => {
     setCartItems(updated);
     calculateTotals(updated);
     await updateCartInDB(updated);
-    triggerToast(`Updated quantity: ${updated[index].title}`);
+    triggerToast(`Updated quantity: ${updated[index].title || updated[index].name || 'Item'}`);
   };
 
   const removeItem = async (index) => {
@@ -98,157 +101,306 @@ const Cart = () => {
     setCartItems(updated);
     calculateTotals(updated);
     await updateCartInDB(updated);
-    triggerToast(`Removed from cart`);
+    triggerToast('Removed from cart');
   };
 
   const handleSaveAddress = () => {
-    const { flat, name, mobile } = address;
-    if (!flat || !name || !mobile.match(/^\d{10}$/)) {
+    const { flat, name, mobile, type } = address;
+    if (!flat || !name || !mobile.match(/^[0-9]{10}$/)) {
       alert('Fill required fields correctly.');
       return;
     }
-    setSavedAddress(address);
+    if (type === 'Other' && !customType.trim()) {
+      alert('Please enter custom address type.');
+      return;
+    }
+    const finalType = type === 'Other' ? customType.trim() : type;
+    setSavedAddress({ ...address, type: finalType });
     triggerToast('Address saved.');
     calculateTotals(cartItems);
   };
 
-    // ✅ STRIPE PAYMENT FUNCTION
-    const handleStripeCheckout = async () => {
-      const user = auth.currentUser;
-      if (!user || cartItems.length === 0 || !savedAddress) {
-        alert('Missing address or items.');
-        return;
-      }
-  
-      try {
-        const stripe = await loadStripe('pk_test_51RoLHnAtXc12QcbOMrwq4UGU7hOchicybjRvhP3CKKgnwtl6Cgkysl0wQmBbf3OIRP0jgWamVhagAXAndZCv213f00LzKFMuNK'); // ✅ Real publishable key
-  
-        const response = await fetch('http://localhost:5000/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totals.grandTotal * 100, // Stripe uses smallest currency unit (₹ -> paise)
-            cartItems,
-            address: savedAddress,
-            userId: user.uid,
-          }),
-        });
-  
-        const data = await response.json();
-  
-        if (data.url) {
-          window.location.href = data.url; // Stripe Checkout redirect
-        } else {
-          alert('Payment initiation failed.');
-        }
-      } catch (err) {
-        console.error('Stripe Checkout error:', err);
-        alert('Payment error occurred.');
-      }
-    };
-  
+  const handleStripeCheckout = async () => {
+    const user = auth.currentUser;
+    if (!user || cartItems.length === 0 || !savedAddress) {
+      alert('Missing address or items.');
+      return;
+    }
+
+    try {
+      const stripe = await loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+      const response = await fetch('http://localhost:5002/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cartItems.map(({ title, name, price, quantity }) => ({
+            name: title || name,
+            price,
+            quantity,
+          })),
+          userId: user?.uid || 'guest',
+          email: user?.email || 'guest@example.com'
+        }),
+      });
+
+      if (!response.ok) throw new Error('Checkout session creation failed');
+
+      const data = await response.json();
+      if (data.url) window.location.href = data.url;
+      else alert('Payment initiation failed.');
+    } catch (err) {
+      console.error('Stripe Checkout error:', err);
+      alert('Payment error occurred.');
+    }
+  };
+
+  // Google Login
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      triggerToast('Logged in with Google!');
+      fetchCart();
+    } catch (err) {
+      console.error('Google login error:', err);
+    }
+  };
+
+  // Phone Login
+  const handlePhoneLogin = () => {
+    const phoneNumber = prompt('Enter your phone number with country code (e.g., +91XXXXXXXXXX)');
+    if (!phoneNumber) return;
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+    });
+    const appVerifier = window.recaptchaVerifier;
+    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+      .then((confirmationResult) => {
+        const code = prompt('Enter the OTP sent to your phone');
+        return confirmationResult.confirm(code);
+      })
+      .then(() => {
+        triggerToast('Logged in with Phone!');
+        fetchCart();
+      })
+      .catch((err) => {
+        console.error('Phone login error:', err);
+      });
+  };
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: 'auto', background: lightBrown }}>
-      <h2 style={{ color: brown }}>Your Cart</h2>
-
-      {cartItems.length === 0 && (
-        <div style={{ padding: 20, textAlign: 'center', fontSize: 18, color: '#666' }}>
-          Cart is empty.
-        </div>
-      )}
-
-      {cartItems.length > 0 && (
-        <div style={{ border: `1px solid ${brown}`, padding: 20, borderRadius: 10, marginBottom: 24 }}>
-          {cartItems.map((item, index) => (
-            <div key={index} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              borderBottom: '1px solid #ddd', padding: '16px 0'
-            }}>
-              <img src={item.image} alt={item.title} width={100} height={100} style={{ borderRadius: 8 }} />
-              <div style={{ flex: 1, marginLeft: 20 }}>
-                <h3 style={{ margin: 0 }}>{item.title}</h3>
-                <p style={{ margin: '4px 0' }}>₹{item.price}</p>
-              </div>
-              <div>
-                <button onClick={() => changeQuantity(index, -1)}>-</button>
-                <span style={{ margin: '0 12px', fontSize: 16 }}>{item.quantity}</span>
-                <button onClick={() => changeQuantity(index, 1)}>+</button>
-              </div>
-              <DeleteIcon style={{ cursor: 'pointer', color: brown }} onClick={() => removeItem(index)} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {cartItems.length > 0 && (
-        <div style={{ border: `1px solid ${brown}`, padding: 20, borderRadius: 10, marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 12, color: brown }}>Deliver To</h3>
-          {!savedAddress ? (
-            <>
-              <input placeholder="Flat / House No" value={address.flat} onChange={(e) => setAddress({ ...address, flat: e.target.value })} style={{ width: '100%', marginBottom: 10, padding: 12, fontSize: 16 }} />
-              <input placeholder="Full Name" value={address.name} onChange={(e) => setAddress({ ...address, name: e.target.value })} style={{ width: '100%', marginBottom: 10, padding: 12, fontSize: 16 }} />
-              <input placeholder="Mobile Number" maxLength="10" value={address.mobile} onChange={(e) => setAddress({ ...address, mobile: e.target.value })} style={{ width: '100%', marginBottom: 10, padding: 12, fontSize: 16 }} />
-              <input placeholder="Alternative Number" maxLength="10" value={address.altMobile} onChange={(e) => setAddress({ ...address, altMobile: e.target.value })} style={{ width: '100%', marginBottom: 12, padding: 12, fontSize: 16 }} />
-
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <button onClick={() => setAddress({ ...address, type: 'Home' })} style={{ flex: 1, background: address.type === 'Home' ? brown : '#ddd', color: 'white', padding: 12, border: 'none', borderRadius: 6 }}>
-                  <HomeIcon /> Home
+    <div style={{ background: '#f9fafb', padding: 24, fontFamily: 'Inter, sans-serif', minHeight: '100vh' }}>
+      <h2 style={{ fontSize: 32, fontWeight: 600, textAlign: 'center', marginBottom: 32 }}>Your Cart</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24, maxWidth: 1200, margin: 'auto' }}>
+        <div>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
+            {cartItems.length === 0 ? (
+              <div style={{ textAlign: 'center' }}>
+                <video
+                  src="/assets/emptycartem.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 16 }}
+                />
+                <p style={{ fontSize: 18, fontWeight: 500, marginBottom: 16 }}>Cart is empty.</p>
+                {/* <button
+                  onClick={handleGoogleLogin}
+                  style={{
+                    background: '#4285F4',
+                    color: '#fff',
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: 6,
+                    marginRight: 8,
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Login with Google
                 </button>
-                <button onClick={() => setAddress({ ...address, type: 'Work' })} style={{ flex: 1, background: address.type === 'Work' ? brown : '#ddd', color: 'white', padding: 12, border: 'none', borderRadius: 6 }}>
-                  <WorkIcon /> Work
-                </button>
+                <button
+                  onClick={handlePhoneLogin}
+                  style={{
+                    background: '#000',
+                    color: '#fff',
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Login with Phone
+                </button> */}
+                <div id="recaptcha-container"></div>
               </div>
+            ) : (
+              cartItems.map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    padding: '24px 0',
+                    borderBottom: index !== cartItems.length - 1 ? '1px solid #e5e7eb' : 'none',
+                    gap: 24,
+                  }}
+                >
+                  <img
+                    src={item.image || ''}
+                    alt={item.title || item.name}
+                    style={{ width: 200, height: 140, borderRadius: 8, objectFit: 'contain', background: '#f3f4f6' }}
+                    onError={(e) => { e.target.src = '/assets/default-product.png'; }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ margin: 0, fontSize: 18 }}>{item.title || item.name}</h3>
+                    <p style={{ margin: '4px 0', color: '#6b7280', fontWeight: 500 }}>₹{item.price}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                      <RemoveCircleRoundedIcon onClick={() => changeQuantity(index, -1)} style={{ cursor: 'pointer' }} />
+                      <span>{item.quantity}</span>
+                      <AddCircleRoundedIcon onClick={() => changeQuantity(index, 1)} style={{ cursor: 'pointer' }} />
+                      <DeleteForeverRoundedIcon
+                        onClick={() => removeItem(index)}
+                        style={{ color: '#ef4444', cursor: 'pointer', marginLeft: 16 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
-              <button onClick={handleSaveAddress} style={{ width: '100%', background: brown, color: 'white', padding: 14, fontSize: 16, borderRadius: 6, border: 'none' }}>Save Address</button>
-            </>
-          ) : (
-            <div style={{ fontSize: 16, color: '#333' }}>
-              <p><strong>{savedAddress.name}</strong> - {savedAddress.flat}</p>
-              <p>{savedAddress.mobile} / {savedAddress.altMobile || '—'}</p>
-              <p>Type: {savedAddress.type}</p>
+          {/* Shipping Address */}
+          {cartItems.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24, marginTop: 24 }}>
+              <h3 style={{ marginBottom: 16 }}>Shipping Address</h3>
+              {!savedAddress ? (
+                <>
+                  {['flat', 'name', 'mobile', 'altMobile'].map((key, i) => (
+                    <input
+                      key={i}
+                      placeholder={key === 'flat' ? 'Flat / House No' : key === 'altMobile' ? 'Alternative Number' : key === 'mobile' ? 'Mobile Number' : 'Full Name'}
+                      value={address[key]}
+                      onChange={(e) => setAddress({ ...address, [key]: e.target.value })}
+                      style={{
+                        width: '100%',
+                        marginBottom: 12,
+                        padding: 12,
+                        fontSize: 16,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 6,
+                      }}
+                    />
+                  ))}
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    {['Home', 'Work', 'Other'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setAddress({ ...address, type });
+                          if (type !== 'Other') setCustomType('');
+                        }}
+                        style={{
+                          flex: 1,
+                          background: address.type === type ? '#000' : '#f3f4f6',
+                          color: address.type === type ? '#fff' : '#111827',
+                          padding: 12,
+                          borderRadius: 6,
+                          fontWeight: 600,
+                          border: 'none',
+                        }}
+                      >
+                        {type === 'Home' ? <HomeIcon /> : type === 'Work' ? <WorkIcon /> : '+'} {type}
+                      </button>
+                    ))}
+                  </div>
+                  {address.type === 'Other' && (
+                    <input
+                      placeholder="Custom Label (e.g. Parents' Home)"
+                      value={customType}
+                      onChange={(e) => setCustomType(e.target.value)}
+                      style={{
+                        width: '100%',
+                        marginBottom: 12,
+                        padding: 12,
+                        fontSize: 16,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 6,
+                      }}
+                    />
+                  )}
+                  <button
+                    onClick={handleSaveAddress}
+                    style={{
+                      width: '100%',
+                      background: '#000',
+                      color: '#fff',
+                      padding: 14,
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: 'none',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Save Address
+                  </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 16 }}>
+                  <p><strong>{savedAddress.name}</strong> - {savedAddress.flat}</p>
+                  <p>{savedAddress.mobile} / {savedAddress.altMobile || '—'}</p>
+                  <p>Type: {savedAddress.type}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
 
-      {savedAddress && cartItems.length > 0 && (
-        <>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 16 }}>
-              <input type="checkbox" checked={useNix} onChange={() => setUseNix(!useNix)} style={{ marginRight: 8 }} />
-              Use 100 Nix Coins (₹100 Off)
-            </label>
-          </div>
-
-          <div style={{ padding: 20, border: `1px solid ${brown}`, borderRadius: 10 }}>
-            <h3 style={{ color: brown }}>Order Summary</h3>
+        {savedAddress && cartItems.length > 0 && (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
+            <h3 style={{ marginBottom: 12 }}>Order Summary</h3>
             <p>Item Total: ₹{totals.itemTotal}</p>
             <p>Discount: -₹{totals.discount}</p>
             <p>Platform Fee: ₹{totals.platformFee}</p>
             <p><strong>Delivery by: {deliveryDate}</strong></p>
-            <hr />
-            <h2>Total Payable: ₹{totals.grandTotal}</h2>
-
+            <hr style={{ margin: '12px 0', borderColor: '#e5e7eb' }} />
+            <h2 style={{ fontSize: 20 }}>Total: ₹{totals.grandTotal}</h2>
             <button
               onClick={handleStripeCheckout}
-              style={{ background: brown, color: '#fff', padding: 14, fontSize: 16, border: 'none', borderRadius: 6, marginTop: 20 }}
+              style={{
+                width: '100%',
+                background: '#000',
+                color: '#fff',
+                padding: 16,
+                fontSize: 16,
+                border: 'none',
+                borderRadius: 8,
+                marginTop: 20,
+                fontWeight: 600,
+              }}
             >
-              Continue
+              Place Order →
             </button>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {showToast && message && (
-        <div style={{ position: 'fixed', bottom: 30, right: 30, background: brown, color: 'white', padding: '16px 24px', borderRadius: 8, fontSize: 16 }}>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 30,
+            right: 30,
+            background: '#14b8a6',
+            color: '#fff',
+            padding: '16px 24px',
+            borderRadius: 10,
+            fontSize: 16,
+            fontWeight: 500,
+          }}
+        >
           {message}
-        </div>
-      )}
-
-      {savedAddress && boastMsg && (
-        <div style={{ marginTop: 20, background: '#e0d6cd', color: brown, padding: 16, borderRadius: 6, fontWeight: 'bold' }}>
-          {boastMsg}
         </div>
       )}
     </div>

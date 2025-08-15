@@ -27,7 +27,7 @@ const MasonryGallery = () => {
   return (
     <div style={{ marginTop: '80px', marginBottom: '80px' }}>
       <h2 style={{ fontSize: '24px', marginBottom: '32px', textAlign: 'center', color: '#111' }}>
-      Shopnix Inspiration — Curated for You
+      Curated Picks by Shopnix — Tailored to Inspire
       </h2>
       <div
         style={{

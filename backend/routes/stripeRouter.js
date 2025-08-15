@@ -1,9 +1,9 @@
 // routes/stripeRouter.js
-const express = require('express');
-const { createPaymentIntent } = require('../controllers/stripeController');
+import express from 'express';
+import { createCheckoutSession } from '../controllers/stripeController.js';
 
 const router = express.Router();
 
-router.post('/create-payment-intent', createPaymentIntent);
+router.post('/create-checkout-session', createCheckoutSession);
 
-module.exports = router;
+export default router;

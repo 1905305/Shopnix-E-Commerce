@@ -1,29 +1,33 @@
-// backend/controllers/stripeController.js
-const stripe = require('../config/stripe');
+// controllers/stripeController.js
+import stripe from '../config/stripe.js';
 
-const createPaymentIntent = async (req, res) => {
+export const createCheckoutSession = async (req, res) => {
   try {
-    const { amount, currency = 'usd', description, metadata } = req.body;
+    const { items } = req.body;
 
-    if (!amount) {
-      return res.status(400).json({ error: 'Amount is required' });
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items provided for checkout.' });
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency,
-      description,
-      metadata,
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      customer_email: email, // Stripe uses this to send the receipt
+      line_items: items.map(item => ({
+        price_data: {
+          currency: 'inr', // Set INR
+          product_data: { name: item.name },
+          unit_amount: Math.round(item.price * 100), // convert to paise
+        },
+        quantity: item.quantity,
+      })),
+      success_url: 'http://localhost:3000/success',
+      cancel_url: 'http://localhost:3000/cancel',
     });
 
-    res.status(200).json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-    });
+    res.json({ url: session.url });
   } catch (error) {
-    console.error('Stripe error:', error);
-    res.status(500).json({ error: 'Payment intent creation failed' });
+    console.error('Stripe session error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
-
-module.exports = { createPaymentIntent };

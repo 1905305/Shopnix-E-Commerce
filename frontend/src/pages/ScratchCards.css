@@ -1,0 +1,16 @@
+.scratchcards-container {
+    padding: 40px;
+    text-align: center;
+    font-family: Arial, sans-serif;
+  }
+  
+  .scratchcards-container h1 {
+    font-size: 2rem;
+    margin-bottom: 12px;
+  }
+  
+  .scratchcards-container p {
+    font-size: 1.1rem;
+    color: #555;
+  }
+  
