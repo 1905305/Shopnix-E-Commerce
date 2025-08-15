@@ -13,7 +13,8 @@ const CheckoutForm = () => {
 
     if (!stripe || !elements) return;
 
-    const res = await fetch('http://localhost:5002/create-payment-intent', {
+    const res = await fetch('https://shopnix-e-commerce.onrender.com/create-payment-intent', {
+
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount }),

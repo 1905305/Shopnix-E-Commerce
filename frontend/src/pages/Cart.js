@@ -129,7 +129,8 @@ const Cart = () => {
 
     try {
       const stripe = await loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
-      const response = await fetch('http://localhost:5002/api/stripe/create-checkout-session', {
+      const response = await fetch('https://shopnix-e-commerce.onrender.com/api/stripe/create-checkout-session', {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
