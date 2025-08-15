@@ -14,7 +14,8 @@ const OrderHistory = () => {
     const fetchOrders = async () => {
       try {
         const userId = user?.uid || 'guest';
-        const res = await axios.get(`/api/orders/${userId}`);
+        const res = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/orders/${userId}`);
+
         setOrders(res.data || []);
       } catch (err) {
         console.error('Error fetching orders:', err);
