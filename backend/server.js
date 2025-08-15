@@ -25,6 +25,9 @@ app.post(
 // Normal JSON parsing for all other routes
 app.use(express.json());
 
+// Root route for Render check
+app.get('/', (_req, res) => res.send('Backend is running 🚀'));
+
 // Health check
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
