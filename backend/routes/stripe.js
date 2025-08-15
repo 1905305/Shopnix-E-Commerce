@@ -60,6 +60,12 @@ router.post('/create-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Items are required' });
     }
 
+    // ✅ Use a safe base URL (REACT_APP_BASE_URL or FRONTEND_URL or default)
+    const baseUrl =
+      process.env.REACT_APP_BASE_URL ||
+      process.env.FRONTEND_URL ||
+      'https://shopnix-e-commerce.vercel.app';
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -68,13 +74,14 @@ router.post('/create-checkout-session', async (req, res) => {
         price_data: {
           currency: 'inr',
           product_data: { name: item.name },
-          unit_amount: item.price * 100,
+          // ✅ Frontend sends price in paise already; do NOT multiply again
+          unit_amount: item.price,
         },
         quantity: item.quantity,
       })),
-      success_url: `${process.env.REACT_APP_BASE_URL}/success`,
-      cancel_url: `${process.env.REACT_APP_BASE_URL}/cancel`,
-      
+      success_url: `${baseUrl}/success`,
+      cancel_url: `${baseUrl}/cancel`,
+
       metadata: {
         userId: userId || 'guest',
         // email: email || 'guest@example.com', // ❌ Commented out
