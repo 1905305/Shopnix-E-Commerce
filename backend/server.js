@@ -9,8 +9,22 @@ import stripeRoutes from './routes/stripe.js';
 
 const app = express();
 
-// Enable CORS
-app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
+// 🔹 Updated CORS to allow localhost and deployed frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://shopnix-e-commerce.vercel.app'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+  credentials: true
+}));
 
 /**
  * 🔹 Webhook route must come BEFORE express.json()
