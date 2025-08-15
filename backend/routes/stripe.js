@@ -71,8 +71,9 @@ router.post('/create-checkout-session', async (req, res) => {
         },
         quantity: item.quantity,
       })),
-      success_url: 'http://localhost:3000/success',
-      cancel_url: 'http://localhost:3000/cancel',
+      success_url: `${process.env.REACT_APP_BASE_URL}/success`,
+      cancel_url: `${process.env.REACT_APP_BASE_URL}/cancel`,
+      
       metadata: {
         userId: userId || 'guest', // ✅ This is where UID will come from frontend
         email: email || 'guest@example.com',
